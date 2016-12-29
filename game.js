@@ -52,37 +52,64 @@ Game.prototype.start = function (scene) {
 }
 
 
-function MainScene(game, player) {
+function Key() {
+	this.pushed = {};
+	this._keyEventConsumers = [];
+
+	var key = this;
+	document.onkeydown = function (e) {
+		key.pushed[e.keyCode] = true;
+		key._keyEventConsume();
+	}
+
+	document.onkeyup = function (e) {
+		key.pushed[e.keyCode] = false;
+		key._keyEventConsume();
+	}
+}
+
+Key.prototype.listenKeyEvent = function (eventConsumer) {
+	this._keyEventConsumers.push(eventConsumer);
+}
+
+Key.prototype._keyEventConsume = function () {
+	var codes = [];
+	for (var keyCode in this.pushed) {
+		if (this.pushed[keyCode]) {
+			codes.push(keyCode);
+		}
+	}
+
+	for (var i = 0; i < this._keyEventConsumers.length; ++i) {
+		this._keyEventConsumers[i](codes);
+	}
+}
+
+
+function MainScene(game, assets, player) {
 	this.game = game;
+	this.assets = assets;
 	this.player = player;
 
 	this.camera = new Camera(0, 0, game.width, game.height, player);
-	var player = this.player;
-	var camera = this.camera;
-	document.onkeydown = function (e) {
-		if (e.keyCode == 38) {
-			player.walk(player.x, player.y - 1);
-		}
-		if (e.keyCode == 40) {
-			player.walk(player.x, player.y + 1);
-		}
-		if (e.keyCode == 37) {
-			player.walk(player.x - 1, player.y);
-		}
-		if (e.keyCode == 39) {
-			player.walk(player.x + 1, player.y);
-		}
-	}
-	game.screenCanvas.onclick = function (e) {
-		var rect = game.screenCanvas.getBoundingClientRect();
-		var positionX = rect.left + window.pageXOffset;
-		var positionY = rect.top + window.pageYOffset;
-		var x = camera.x + e.pageX - positionX;
-		var y = camera.y + e.pageY - positionY;
 
-		//console.log(player.sprite.offsetX, player.sprite.offsetY);
-		player.walk(convertDrawX(x, y, player.sprite.offsetX, player.sprite.offsetY), convertDrawY(x, y, player.sprite.offsetX, player.sprite.offsetY));
+	this._keyEventConsumers = [];
+	this._clickEventConsumers = [];
+
+	this.key = new Key();
+
+	var scene = this;
+	game.screenCanvas.onclick = function (e) {
+		scene._clickEventConsumer(e);
 	}
+}
+
+MainScene.prototype.listenKeyEvent = function (eventConsumer) {
+	this._keyEventConsumers.push(eventConsumer);
+}
+
+MainScene.prototype.listenClickEvent = function (eventConsumer) {
+	this._clickEventConsumers.push(eventConsumer);
 }
 
 MainScene.prototype.update = function () {
@@ -91,15 +118,31 @@ MainScene.prototype.update = function () {
 	this.draw();
 }
 
-var background = new Image();
-background.src = "assets/sky_winter.jpg";
+MainScene.prototype._keyEventConsumer = function (e) {
+	for (var i = 0; i < this._keyEventConsumers.length; ++i) {
+		(this._keyEventConsumers[i])(e);
+	}
+}
+
+MainScene.prototype._clickEventConsumer = function (e) {
+	var rect = game.screenCanvas.getBoundingClientRect();
+	var positionX = rect.left + window.pageXOffset;
+	var positionY = rect.top + window.pageYOffset;
+	var x = this.camera.x + e.pageX - positionX;
+	var y = this.camera.y + e.pageY - positionY;
+	var drawX = convertDrawX(x, y, this.player.sprite.offsetX, this.player.sprite.offsetY);
+	var drawY = convertDrawY(x, y, this.player.sprite.offsetX, this.player.sprite.offsetY);
+
+	for (var i in this._clickEventConsumers) {
+		this._clickEventConsumers[i](drawX, drawY);
+	}
+}
 
 MainScene.prototype.draw = function () {
 	var map = this.player.map;
 
 	var context = this.game.screenCanvas.getContext("2d");
 	context.clearRect(0, 0, this.game.width, this.game.height);
-	context.drawImage(background, 0, 0);
 
 	var d = this.player.sprite.direction;
 	var playerX = this.player.sprite.targetGameX;
@@ -119,7 +162,7 @@ MainScene.prototype.draw = function () {
 				if (tileData[y][x] == 0 || (this.player.h + 1 == l && playerX == x && playerY == y)) {
 					continue;
 				}
-				var image = map.getImage(tileData[y][x]);
+				var image = this.assets.getTileImage(map.id, tileData[y][x]);
 				var drawX = convertX(x, y) + offsetX - 16 - this.camera.x;
 				var drawY = convertY(x, y) + offsetY - 8 - this.camera.y;
 				if (drawX < - 50 || drawX > 690 || drawY < - 50 || drawY > 530) {
@@ -140,7 +183,7 @@ MainScene.prototype.draw = function () {
 			var offsetX = tileData.offsetX;
 			var offsetY = tileData.offsetY;
 
-			var image = map.getImage(tileData[playerY][playerX]);
+			var image = this.assets.getTileImage(map.id, tileData[playerY][playerX]);
 			var drawX = convertX(playerX, playerY) + offsetX - 16 - this.camera.x;
 			var drawY = convertY(playerX, playerY) + offsetY - 8 - this.camera.y;
 			if (drawX < - 50 || drawX > 690 || drawY < - 50 || drawY > 530) {
@@ -162,13 +205,13 @@ MainScene.prototype.draw = function () {
 				if (tileData[y][x] == 0) {
 					continue;
 				}
-				var image = map.getImage(tileData[y][x]);
+				var image = this.assets.getTileImage(map.id, tileData[y][x]);
 				var drawX = convertX(x, y) + offsetX - 16 - this.camera.x;
 				var drawY = convertY(x, y) + offsetY - 8 - this.camera.y;
 				if (drawX < - 50 || drawX > 690 || drawY < - 50 || drawY > 530) {
 					continue;
 				}
-				if (l > player.h + 1 && (x - playerX >= 0 && x - playerX <= 2 && y - playerY >= 0 && y - playerY <= 2)) {
+				if (l > this.player.h + 1 && (x - playerX >= 0 && x - playerX <= 2 && y - playerY >= 0 && y - playerY <= 2)) {
 					context.globalAlpha = 0.2;
 					context.drawImage(image, drawX, drawY);
 					context.globalAlpha = 1;
@@ -252,15 +295,15 @@ function SpritePlayer(player, width, height) {
 SpritePlayer.prototype.update = function () {
 	this.count++;
 	if (this.count > 2) {
-		if (player.status == WALK_A) {
-			player.status = WALK_B;
-		} else if (player.status == WALK_B) {
-			player.status = WALK_A;
+		if (this.player.status == WALK_A) {
+			this.player.status = WALK_B;
+		} else if (this.player.status == WALK_B) {
+			this.player.status = WALK_A;
 		}
 		this.count = 0;
 	}
 
-	if (player.status == WALK_A || player.status == WALK_B) {
+	if (this.player.status == WALK_A || this.player.status == WALK_B) {
 		var dx = this.targetX - this.x;
 		var dy = this.targetY - this.y;
 		var d = Math.sqrt(dx * dx + dy * dy);
@@ -311,7 +354,7 @@ SpritePlayer.prototype.getCenterY = function () {
 }
 
 SpritePlayer.prototype.getImage = function () {
-	return this.images[this.direction * 3 + player.status];
+	return this.images[this.direction * 3 + this.player.status];
 }
 
 SpritePlayer.prototype._loadAssets = function () {
@@ -328,6 +371,70 @@ SpritePlayer.prototype._drawX = function (x, y) {
 
 SpritePlayer.prototype._drawY = function (x, y) {
 	return convertY(x, y) - 35;
+}
+
+function Assets() {
+	this.tileData = {};
+	this.tileImages = {};
+	this.characterImages = {};
+
+	this.tileLoaded = false;
+	this.characterLoaded = false;
+}
+
+Assets.prototype.loadTile = function (loaded) {
+	var rawData = [map1];
+	var total = 0;
+	for (var id in rawData) {
+		total += rawData[id].tilesets[0].tilecount;
+	}
+	var imageCount = 0;
+
+	for (var id in rawData) {
+		var tileData = {};
+		tileData.height = rawData[id].height;
+		tileData.width = rawData[id].width;
+		for (var l = 0; l < rawData[id].layers.length; ++l) {
+			var rawTileData = rawData[id].layers[l].data;
+			var offsetX = rawData[id].layers[l].offsetx != null ? rawData[id].layers[l].offsetx : 0;
+			var offsetY = rawData[id].layers[l].offsety != null ? rawData[id].layers[l].offsety : 0;
+			var data = {};
+			data.offsetX = offsetX;
+			data.offsetY = offsetY;
+
+			for (var y = 0; y < rawData[id].height; ++y) {
+				data[y] = [];
+				for (var x = 0; x < rawData[id].width; ++x) {
+					data[y].push(rawTileData[y * rawData[id].height + x] == 0 ? 0 : rawTileData[y * rawData[id].height + x] - 1);
+				}
+			}
+			tileData[l] = data;
+		}
+		this.tileData[id] = tileData;
+
+		var images = {};
+		var tileset = rawData[id].tilesets[0];
+		for (var i = 0; i < tileset.tilecount; ++i) {
+			var image = new Image(32, 32);
+			image.src = 'assets/50309019_p0/' + i + '.png';
+			image.onload = function() {
+				imageCount++;
+				if (imageCount == total) {
+					loaded();
+				}
+			}
+			images[i] = image;
+		}
+		this.tileImages[id] = images;
+	}
+}
+
+Assets.prototype.getTileImage = function(id, imageId) {
+	return this.tileImages[id][imageId];
+}
+
+Assets.prototype.getTileData = function(id) {
+	return this.tileData[id];
 }
 
 function Player(name, x, y, h, width, height, map, world) {
@@ -408,7 +515,7 @@ function getDirection(x, y, tx, ty) {
 	} else if (tx > x && ty == y) {
 		return RIGHT_DOWN;
 	}*/
-	var vx = convertX(tx - x, ty - y);
+	/*var vx = convertX(tx - x, ty - y);
 	var vy = convertY(tx - x, ty - y);
 	if (vx == 0 && vy == 0) {
 		return 0;
@@ -416,7 +523,7 @@ function getDirection(x, y, tx, ty) {
 	var n = Math.sqrt(vx * vx + vy * vy);
 	vx = vx / n;
 	vy = vy / n;
-	
+
 	var max = -2;
 	var maxi = 0;
 	for (var i = 0; i < 8; ++i) {
@@ -427,7 +534,29 @@ function getDirection(x, y, tx, ty) {
 		}
 	}
 
-	return maxi;
+	return maxi;*/
+
+	var dx = tx - x;
+	var dy = ty - y;
+
+	if (Math.min(Math.abs(dx), Math.abs(dy)) >= 1 && (Math.abs(dx) > 1 || Math.abs(dy) > 1) && Math.abs(dx) != Math.abs(dy)) {
+		if (Math.abs(dx) < Math.abs(dy)) {
+			if (Math.random() >= Math.abs(dx) / Math.abs(dy)) {
+				dx = 0;
+			}
+		} else {
+			if (Math.random() >= Math.abs(dy) / Math.abs(dx)) {
+				dy = 0;
+			}
+		}
+	}
+
+	for (var i = 0; i < 8; ++i) {
+		if (DV[i].x == (dx == 0 ? dx : dx / Math.abs(dx)) && DV[i].y == (dy == 0 ? dy : dy / Math.abs(dy))) {
+			return i;
+		}
+	}
+	return 0;
 }
 
 function World() {
@@ -438,20 +567,18 @@ World.prototype.addMap = function (map) {
 	this.maps.push(map);
 }
 
-function Map(name, data) {
+function Map(id, name, tileData) {
+	this.id = id;
 	this.name = name;
-	this.data = data;
-	this.width = data.width;
-	this.height = data.height;
+
+	this.width = tileData.width;
+	this.height = tileData.height;
 
 	this.tiles = {};
 	this.npcs = [];
 
-	this.layer = Math.ceil(data.layers.length / 2);
-	this.tileData = [];
-
-	this._loadTile();
-	this._loadAssets();
+	this.layer = (Object.keys(tileData).length - 2) / 2;
+	this.tileData = tileData;
 }
 
 Map.prototype.canWalk = function (x, y, h) {
@@ -462,23 +589,23 @@ Map.prototype.canWalk = function (x, y, h) {
 	return data[y][x] == 0 || data[y][x] == 2 || data[y][x] == 3;
 }
 
-Map.prototype.upstairs = function(x, y, h) {
+Map.prototype.upstairs = function (x, y, h) {
 	return this.hasH(h) && this._tileData(h * 2 + 1)[y][x] == 2;
 }
 
-Map.prototype.downstairs = function(x, y, h) {
+Map.prototype.downstairs = function (x, y, h) {
 	return this.hasH(h) && this._tileData(h * 2 + 1)[y][x] == 3;
 }
 
-Map.prototype.isStair = function(x, y, h) {
+Map.prototype.isStair = function (x, y, h) {
 	return this.hasH(h) && this._tileData(h * 2 + 1)[y][x] == 2;
 }
 
-Map.prototype.getTileData = function(h) {
+Map.prototype.getTileData = function (h) {
 	return this._tileData(h * 2);
 }
 
-Map.prototype.getOffset = function(x, y, h) {
+Map.prototype.getOffset = function (x, y, h) {
 	var tileData = this.getTileData(h);
 	var offset = {};
 
@@ -492,42 +619,14 @@ Map.prototype.getOffset = function(x, y, h) {
 	return offset;
 }
 
-Map.prototype.hasH = function(h) {
+Map.prototype.hasH = function (h) {
 	return h >= 0 && h < this.layer;
 }
 
-Map.prototype.getImage = function(id) {
+Map.prototype.getImage = function (id) {
 	return this.tiles[id];
 }
 
-Map.prototype._tileData = function(number) {
+Map.prototype._tileData = function (number) {
 	return this.tileData[number];
-}
-
-Map.prototype._loadTile = function() {
-	for (var l = 0; l < this.data.layers.length; ++l) {
-		var rawData = this.data.layers[l].data;
-		var offsetX = this.data.layers[l].offsetx != null ? this.data.layers[l].offsetx : 0;
-		var offsetY = this.data.layers[l].offsety != null ? this.data.layers[l].offsety : 0;
-		var data = {};
-		data.offsetX = offsetX;
-		data.offsetY = offsetY;
-
-		for (var y = 0; y < this.height; ++y) {
-			data[y] = [];
-			for (var x = 0; x < this.width; ++x) {
-				data[y].push(rawData[y * this.height + x] == 0 ? 0 : rawData[y * this.height + x] - 1);
-			}
-		}
-		this.tileData.push(data);
-	}
-}
-
-Map.prototype._loadAssets = function () {
-	var tileset = this.data.tilesets[0];
-	for (var i = 0; i < tileset.tilecount; ++i) {
-		var image = new Image(32, 32);
-		image.src = 'assets/50309019_p0/' + i + '.png';
-		this.tiles[i] = image;
-	}
 }
