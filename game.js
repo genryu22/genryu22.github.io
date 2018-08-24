@@ -498,61 +498,38 @@ Player.prototype._walk = function () {
 }
 
 function getDirection(x, y, tx, ty) {
-	/*if (tx > x && ty > y) {
-		return DOWN;
-	} else if (tx == x && ty > y) {
-		return LEFT_DOWN;
-	} else if (tx < x && ty > y) {
-		return LEFT;
-	} else if (tx < x && ty == y) {
-		return LEFT_UP;
-	} else if (tx < x && ty < y) {
-		return UP;
-	} else if (tx == x && ty < y) {
-		return RIGHT_UP;
-	} else if (tx > x && ty < y) {
-		return RIGHT;
-	} else if (tx > x && ty == y) {
-		return RIGHT_DOWN;
-	}*/
-	/*var vx = convertX(tx - x, ty - y);
-	var vy = convertY(tx - x, ty - y);
-	if (vx == 0 && vy == 0) {
-		return 0;
-	}
-	var n = Math.sqrt(vx * vx + vy * vy);
-	vx = vx / n;
-	vy = vy / n;
-
-	var max = -2;
-	var maxi = 0;
-	for (var i = 0; i < 8; ++i) {
-		var cos = vx * DEV[i].x + vy * DEV[i].y;
-		if (cos > max) {
-			max = cos;
-			maxi = i;
-		}
-	}
-
-	return maxi;*/
-
 	var dx = tx - x;
 	var dy = ty - y;
 
-	if (Math.min(Math.abs(dx), Math.abs(dy)) >= 1 && (Math.abs(dx) > 1 || Math.abs(dy) > 1) && Math.abs(dx) != Math.abs(dy)) {
-		if (Math.abs(dx) < Math.abs(dy)) {
-			if (Math.random() >= Math.abs(dx) / Math.abs(dy)) {
-				dx = 0;
-			}
+	if (dx == 0 && dy == 0) {
+		return 0;
+	}
+
+	var steep = Math.abs(dy) > Math.abs(dx);
+	if (steep) {
+		var temp = dy;
+		dy = dx;
+		dx = temp;
+	}
+
+	var xstep = dx > 0 ? 1 : -1;
+	var ystep = 0;
+	if (2 * Math.abs(dy) - Math.abs(dx) > 0) {
+		if (dy < 0) {
+			ystep = -1;
 		} else {
-			if (Math.random() >= Math.abs(dy) / Math.abs(dx)) {
-				dy = 0;
-			}
+			ystep = 1;
 		}
 	}
 
+	if (steep) {
+		var temp = ystep;
+		ystep = xstep;
+		xstep = temp;
+	}
+
 	for (var i = 0; i < 8; ++i) {
-		if (DV[i].x == (dx == 0 ? dx : dx / Math.abs(dx)) && DV[i].y == (dy == 0 ? dy : dy / Math.abs(dy))) {
+		if (DV[i].x == xstep && DV[i].y == ystep) {
 			return i;
 		}
 	}
