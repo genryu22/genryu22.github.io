@@ -46,9 +46,20 @@ function Game(width, height) {
 
 Game.prototype.start = function (scene) {
 	this.currentScene = scene;
-	setInterval(function () {
+	var fps = 12;
+
+	var update = function() {
+		var start_ms = new Date().getTime();
 		scene.update();
-	}, 1000 / 12);
+		var elapsed_ms = new Date().getTime() - start_ms;
+		var time = 1000 / fps - elapsed_ms;
+
+		setTimeout (function() {
+			update();
+		}, time)
+	}
+
+	update();
 }
 
 
