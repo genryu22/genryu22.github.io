@@ -155,64 +155,34 @@ MainScene.prototype.draw = function () {
 	var context = this.game.screenCanvas.getContext("2d");
 	context.clearRect(0, 0, this.game.width, this.game.height);
 
-	var d = this.player.sprite.direction;
-	var playerX = this.player.sprite.targetGameX;
-	var playerY = this.player.sprite.targetGameY;
-	if (this.player.isWalk() && (d == UP || d == LEFT_UP || d == RIGHT_UP)) {
-		playerX = this.player.sprite.gameX;
-		playerY = this.player.sprite.gameY;
-	}
+	var tileData = map.getTileData(0);
+	var offsetX = tileData.offsetX;
+	var offsetY = tileData.offsetY;
 
-	for (var l = 0; l < map.layer; ++l) {
-		var tileData = map.getTileData(l);
-		var offsetX = tileData.offsetX;
-		var offsetY = tileData.offsetY;
-
-		for (var x = 0; x < playerX + playerY + 1; ++x) {
-			for (var y = 0; y < playerX + playerY + 1 - x; ++y) {
-				if (tileData[y][x] == 0 || (this.player.h + 1 == l && playerX == x && playerY == y)) {
-					continue;
-				}
-				var image = this.assets.getTileImage(map.id, tileData[y][x]);
-				var drawX = convertX(x, y) + offsetX - 16 - this.camera.x;
-				var drawY = convertY(x, y) + offsetY - 8 - this.camera.y;
-				if (drawX < - 50 || drawX > 690 || drawY < - 50 || drawY > 530) {
-					continue;
-				}
-				context.drawImage(image, drawX, drawY);
+	for (var x = 0; x < map.width; ++x) {
+		for (var y = 0; y < map.height; ++y) {
+			if (tileData[y][x] == 0) {
+				continue;
 			}
-		}
-	}
-
-	context.drawImage(this.player.sprite.getImage(),
-		this.player.sprite.x - this.camera.x,
-		this.player.sprite.y - this.camera.y);
-
-	if (this.player.h + 1 < map.layer) {
-		var tileData = map.getTileData(this.player.h + 1);
-		if (tileData[playerY][playerX] != 0) {
-			var offsetX = tileData.offsetX;
-			var offsetY = tileData.offsetY;
-
-			var image = this.assets.getTileImage(map.id, tileData[playerY][playerX]);
-			var drawX = convertX(playerX, playerY) + offsetX - 16 - this.camera.x;
-			var drawY = convertY(playerX, playerY) + offsetY - 8 - this.camera.y;
+			var image = this.assets.getTileImage(map.id, tileData[y][x]);
+			var drawX = convertX(x, y) + offsetX - 16 - this.camera.x;
+			var drawY = convertY(x, y) + offsetY - 8 - this.camera.y;
 			if (drawX < - 50 || drawX > 690 || drawY < - 50 || drawY > 530) {
-			} else {
-				context.drawImage(image, drawX, drawY);
+				continue;
 			}
+			context.drawImage(image, drawX, drawY);
 		}
 	}
 
-	for (var l = 0; l < map.layer; ++l) {
+	var displayObjects = [];
+
+	for (var l = 1; l < map.layer; ++l) {
 		var tileData = map.getTileData(l);
 		var offsetX = tileData.offsetX;
 		var offsetY = tileData.offsetY;
 
 		for (var x = 0; x < map.width; ++x) {
-			var startY = playerX + playerY + 1 - x;
-			startY = startY < 0 ? 0 : startY;
-			for (var y = startY; y < map.height; ++y) {
+			for (var y = 0; y < map.height; ++y) {
 				if (tileData[y][x] == 0) {
 					continue;
 				}
@@ -222,14 +192,103 @@ MainScene.prototype.draw = function () {
 				if (drawX < - 50 || drawX > 690 || drawY < - 50 || drawY > 530) {
 					continue;
 				}
-				if (l > this.player.h + 1 && (x - playerX >= 0 && x - playerX <= 2 && y - playerY >= 0 && y - playerY <= 2)) {
-					context.globalAlpha = 0.2;
-					context.drawImage(image, drawX, drawY);
-					context.globalAlpha = 1;
-				} else {
-					context.drawImage(image, drawX, drawY);
+				var gameZ1 = l - 1;
+				var gameZ2 = l;
+				if (map.upstairs(x, y, l)) {
+					gameZ2 -= 0.5;
+				}
+				displayObjects.push(new DisplayObject(x, y, gameZ1, x + 1, y + 1, gameZ2,image, drawX, drawY, map.canWalk(x, y, l)));
+			}
+		}
+	}
+
+	displayObjects.push(new DisplayObject(this.player.sprite.gameX, this.player.sprite.gameY, this.player.sprite.gameZ, this.player.sprite.gameX + 1, this.player.sprite.gameY + 1, this.player.sprite.gameZ + 2, this.player.sprite.getImage(), this.player.sprite.x - this.camera.x, this.player.sprite.y - this.camera.y, false));
+
+	//console.time("依存関係");
+	for (var i in displayObjects) {
+		displayObjects[i].makeDependencies(displayObjects);
+	}
+	//console.timeEnd("依存関係");
+
+	//console.time("トポロジカルソート");
+	var objects = [];
+	var objectsbehind = [];
+	for (var i in displayObjects) {
+		var obj = displayObjects[i];
+
+		if (obj.infrontof.length == 0) {
+			objectsbehind.push(obj);
+		}
+	}
+
+	while (objectsbehind.length != 0) {
+		var obj = objectsbehind.pop();
+		objects.push(obj);
+		while (obj.behind.length != 0) {
+			var o = obj.behind.pop();
+			o.infrontof.splice(o.infrontof.indexOf(obj), 1);
+			if (o.infrontof.length == 0) {
+				objectsbehind.push(o);
+			}
+		}
+	}
+
+	for (var i in displayObjects) {
+		var obj = displayObjects[i];
+		if (obj.behind.length != 0) {
+			console.log("error");
+			break;
+		}
+	}
+	//console.timeEnd("トポロジカルソート");
+
+	for (var i in objects) {
+		var obj = objects[i];
+		context.drawImage(obj.tileImage, obj.drawX, obj.drawY);
+	}
+}
+
+// 座標1は最小, 2は最大
+function DisplayObject(gameX1, gameY1, gameZ1, gameX2, gameY2, gameZ2, tileImage, drawX, drawY, walkable) {
+	this.gameX1 = gameX1;
+	this.gameY1 = gameY1;
+	this.gameZ1 = gameZ1;
+	this.gameX2 = gameX2;
+	this.gameY2 = gameY2;
+	this.gameZ2 = gameZ2;
+	this.tileImage = tileImage;
+	this.drawX = drawX;
+	this.drawY = drawY;
+	this.walkable = walkable;
+
+	// DisplayObjectのリスト
+	this.behind = [];
+	this.infrontof = [];
+}
+
+DisplayObject.prototype.makeDependencies = function (list) {
+	for (var i in list) {
+		var displayObject = list[i];
+		if (this == displayObject) {
+			continue;
+		}
+
+		//重なり
+		if (this.gameX1 < displayObject.gameX2 &&
+				this.gameY1 < displayObject.gameY2 &&
+				this.gameZ1 < displayObject.gameZ2 &&
+				displayObject.gameX1 < this.gameX2 &&
+				displayObject.gameY1 < this.gameY2 &&
+				displayObject.gameZ1 < this.gameZ2) {
+			if (displayObject.walkable) {
+				if (this.gameX2 <= displayObject.gameX2 && this.gameY2 <= displayObject.gameY2 && this.gameZ1 <= displayObject.gameZ1) {
+					this.behind.push(displayObject);
+					displayObject.infrontof.push(this);
 				}
 			}
+		} else if (this.gameX1 < displayObject.gameX2 && this.gameY1 < displayObject.gameY2 && this.gameZ1 < displayObject.gameZ2) {
+			this.behind.push(displayObject);
+			displayObject.infrontof.push(this);
 		}
 	}
 }
@@ -240,6 +299,10 @@ function convertX(x, y) {
 
 function convertY(x, y) {
 	return 8 * x + 8 * y;
+}
+
+function convertY2(x, y, z) {
+	return 8 * x + 8 * y - 16 * z;
 }
 
 function convertDrawX(x, y, offsetX, offsetY) {
@@ -284,13 +347,12 @@ function SpritePlayer(player, width, height) {
 	this.x = this._drawX(player.x, player.y);
 	this.y = this._drawY(player.x, player.y);
 
-	this.targetX = this.x;
-	this.targetY = this.y;
-
 	this.gameX = player.x;
 	this.gameY = player.y;
+	this.gameZ = player.h;
 	this.targetGameX = player.x;
 	this.targetGameY = player.y;
+	this.targetGameZ = player.h;
 
 	this.offsetX = 0;
 	this.offsetY = 0;
@@ -315,22 +377,30 @@ SpritePlayer.prototype.update = function () {
 	}
 
 	if (this.player.status == WALK_A || this.player.status == WALK_B) {
-		var dx = this.targetX - this.x;
-		var dy = this.targetY - this.y;
-		var d = Math.sqrt(dx * dx + dy * dy);
+		var dx = this.targetGameX - this.gameX;
+		var dy = this.targetGameY - this.gameY;
+		var dz = this.targetGameZ - this.gameZ;
+		var d = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-		if (Math.abs(dx) < 5 && Math.abs(dy) < 5) {
-			this.x = this.targetX;
-			this.y = this.targetY;
+		var speed = 0.4;
+		if (d < speed) {
+			this.gameX = this.targetGameX;
+			this.gameY = this.targetGameY;
+			this.gameZ = this.targetGameZ;
 		} else {
 			dx /= d;
 			dy /= d;
+			dz /= d;
 
-			this.x += dx * 5;
-			this.y += dy * 5;
+			this.gameX += dx * speed;
+			this.gameY += dy * speed;
+			this.gameZ += dz * speed;
 		}
 
-		if (this.x == this.targetX && this.y == this.targetY) {
+		this.x = convertX(this.gameX, this.gameY) - 12;
+		this.y = convertY2(this.gameX, this.gameY, this.gameZ) - 35;
+
+		if (this.gameX == this.targetGameX && this.gameY == this.targetGameY && this.gameZ == this.targetGameZ) {
 			this.player.endAnimate();
 		}
 	} else if (this.player.status == NONE) {
@@ -347,12 +417,10 @@ SpritePlayer.prototype.moveTo = function (direction, dh) {
 	var targetTile = this.player.map.getOffset(this.targetGameX, this.targetGameY, this.player.h + dh);
 	var ox = targetTile.offsetX - tile.offsetX;
 	var oy = targetTile.offsetY - tile.offsetY;
-	if (ox != 0 || oy != 0) {
-		this.offsetX += ox;
-		this.offsetY += oy;
-	}
-	this.targetX = this.x + convertX(DV[direction].x, DV[direction].y) + ox;
-	this.targetY = this.y + convertY(DV[direction].x, DV[direction].y) + oy;
+	this.gameZ = - tile.offsetY / 16;
+	this.targetGameZ = - targetTile.offsetY / 16;
+	this.offsetX += ox;
+	this.offsetY += oy;
 	this.direction = direction;
 }
 
