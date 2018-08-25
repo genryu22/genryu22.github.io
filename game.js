@@ -46,13 +46,14 @@ function Game(width, height) {
 
 Game.prototype.start = function (scene) {
 	this.currentScene = scene;
-	var fps = 12;
+	var fps = 24;
 
 	var update = function() {
 		var start_ms = new Date().getTime();
 		scene.update();
 		var elapsed_ms = new Date().getTime() - start_ms;
 		var time = 1000 / fps - elapsed_ms;
+		if (time < 0) time = 0;
 
 		setTimeout (function() {
 			update();
@@ -382,7 +383,7 @@ SpritePlayer.prototype.update = function () {
 		var dz = this.targetGameZ - this.gameZ;
 		var d = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-		var speed = 0.4;
+		var speed = 0.3;
 		if (d < speed) {
 			this.gameX = this.targetGameX;
 			this.gameY = this.targetGameY;
