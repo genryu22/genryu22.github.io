@@ -1,0 +1,51 @@
+<!doctype html>
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no">
+	<title>gacha</title>
+	<link rel="stylesheet" href="/gacha/css/ress.css">
+	<link rel="stylesheet" href="/gacha/css/style.css">
+	<script src="/gacha/js/pixi.min.js"></script>
+</head>
+
+<body>
+
+<div id="gameRoot">
+	<script type="text/javascript" src="/gacha/js/game.js"></script>
+</div>
+
+<script>
+
+const game = window.GAME;
+
+game.setOption({
+	resource: '/gacha',
+	theme: 'default',
+	prize: {
+		prizeImage: 'https://static.mycolor-develop.jp/img/post/7df0772e-b23b-42f0-ab4e-5be4791af57b/upload-file9115517761143418118.gif',
+	},
+	nextPageUrl: '/micoameri/coupon-usage',
+	statusIsCompleted: false,
+}).setStarted(() => {
+	return new Promise((resolve) => {
+		setTimeout(() => {
+			console.log('start');
+			resolve();
+		}, 2000);
+	});
+}).setCompleted(() => {
+	return new Promise((resolve) => {
+		setTimeout(() => {
+			console.log('completed');
+			resolve();
+		}, 2000);
+	});
+}).start();
+  
+</script>
+
+</body>
+
+</html>
